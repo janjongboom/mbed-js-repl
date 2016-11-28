@@ -1,0 +1,23 @@
+{
+  "name": "mbed-js-repl",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/janjongboom/mbed-js-repl.git"
+  },
+  "author": "Jan Jongboom <Jan.Jongboom@arm.com>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/janjongboom/mbed-js-repl/issues"
+  },
+  "homepage": "https://github.com/janjongboom/mbed-js-repl#readme",
+  "dependencies": {
+
+  },
+  "devDependencies": {
+    "mbed-js-gulp": "janjongboom/mbed-js-gulp"
+  }
+}

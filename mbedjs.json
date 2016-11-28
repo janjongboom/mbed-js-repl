@@ -1,0 +1,9 @@
+{
+	"source": [
+		"."
+	],
+	"includes": [
+		"repl/repl_lib.h"
+	],
+	"name": "repl"
+}
