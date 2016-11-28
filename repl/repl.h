@@ -12,8 +12,8 @@ extern RawSerial pc;
 
 class Repl {
 public:
-    Repl() {
-        pc.printf("JavaScript REPL running...\r\n> ");
+    Repl() : historyCounter(0) {
+        pc.printf("\r\nJavaScript REPL running...\r\n> ");
 
         pc.attach(Callback<void()>(this, &Repl::callback));
     }
@@ -23,10 +23,53 @@ private:
         while (pc.readable()) {
             char c = pc.getc();
 
+            // control characters start with 0x1b and end with a-zA-Z
+            if (inControlChar) {
+                pc.putc(c);
+
+                controlSequence.push_back(c);
+
+                // if a-zA-Z then it's the last one in the control char...
+                if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+                    inControlChar = false;
+
+                    if (controlSequence.size() == 2 && controlSequence.at(0) == 0x5b && controlSequence.at(1) == 0x41) {
+                        // up
+                        if (historyCounter == 0) continue;
+
+                        string cmd = history[--historyCounter];
+
+                        buffer.str("");
+                        buffer << cmd;
+
+                        pc.printf("\r\n> %s", cmd.c_str());
+                    }
+                    else if (controlSequence.size() == 2 && controlSequence.at(0) == 0x5b && controlSequence.at(1) == 0x42) {
+                        // down
+                        if (historyCounter == history.size() - 1) {
+                            pc.printf("\r\n> ");
+                            buffer.str("");
+                            continue;
+                        }
+
+                        string cmd = history[++historyCounter];
+
+                        buffer.str("");
+                        buffer << cmd;
+
+                        pc.printf("\r\n> %s", cmd.c_str());
+                    }
+
+                    controlSequence.clear();
+                }
+
+                continue;
+            }
+
             // pc.printf(" %02x ", c);
 
             switch (c) {
-                case '\r': /* no-op */
+                case '\r': /* want to run the buffer */
                     pc.putc(c);
                     pc.putc('\n');
                     js::EventLoop::getInstance().nativeCallback(Callback<void()>(this, &Repl::runBuffer));
@@ -37,12 +80,10 @@ private:
                 case 0x1b: /* control character */
                     pc.putc(c);
 
-                    // forward everything to PC, but do not put them in buffer
-                    while (pc.readable()) {
-                        pc.putc(pc.getc());
-                    }
+                    // wait until next a-zA-Z
+                    inControlChar = true;
 
-                    return; /* break out of the callback (ignore all other characters) */
+                    break; /* break out of the callback (ignore all other characters) */
                 default:
                     buffer << c;
                     pc.putc(c);
@@ -68,6 +109,9 @@ private:
         // pc.printf("Running: %s\r\n", buffer.str().c_str());
 
         string codez = buffer.str();
+
+        history.push_back(codez);
+        historyCounter = history.size();
 
         // pc.printf("Executing: ");
         // for (size_t ix = 0; ix < codez.size(); ix++) {
@@ -103,14 +147,17 @@ private:
                 pc.printf("\33[2K\r");
 
                 if (jerry_value_is_string(returned_value)) {
-                    pc.printf("\"%s\"\r\n", buffer);
+                    pc.printf("\"%s\"", buffer);
                 }
                 else if (jerry_value_is_array(returned_value)) {
-                    pc.printf("[%s]\r\n", buffer);
+                    pc.printf("[%s]", buffer);
                 }
                 else {
-                    pc.printf("%s\r\n", buffer);
+                    pc.printf("%s", buffer);
                 }
+
+                // pc.printf("\r\n");
+                pc.printf("\r\n");
 
                 jerry_release_value(str_value);
             }
@@ -126,6 +173,10 @@ private:
     }
 
     stringstream buffer;
+    bool inControlChar = false;
+    vector<char> controlSequence;
+    vector<string> history;
+    uint8_t historyCounter;
 };
 
 #endif // _MBED_JS_REPL_
