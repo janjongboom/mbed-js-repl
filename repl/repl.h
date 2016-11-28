@@ -42,7 +42,7 @@ private:
                         pc.putc(pc.getc());
                     }
 
-                    break; /* break out of the callback (ignore all other characters) */
+                    return; /* break out of the callback (ignore all other characters) */
                 default:
                     buffer << c;
                     pc.putc(c);
@@ -53,12 +53,15 @@ private:
 
     void handleBackspace() {
         string v = buffer.str();
+
+        if (v.size() == 0) return;
+
         v.resize(v.size () - 1);
 
         buffer.str("");
         buffer << v;
 
-        pc.printf("\33[2K\r> %s", v.c_str());
+        pc.printf("\b \b");
     }
 
     void runBuffer() {
