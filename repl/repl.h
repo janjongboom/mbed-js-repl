@@ -149,6 +149,7 @@ private:
 
                 // reset terminal position to column 0...
                 pc.printf("\33[2K\r");
+                pc.printf("\33[36m"); // color to cyan
 
                 if (jerry_value_is_string(returned_value)) {
                     pc.printf("\"%s\"", buffer);
@@ -161,6 +162,7 @@ private:
                 }
 
                 // pc.printf("\r\n");
+                pc.printf("\33[0m"); // color back to normal
                 pc.printf("\r\n");
 
                 jerry_release_value(str_value);
