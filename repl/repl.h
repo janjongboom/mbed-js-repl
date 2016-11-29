@@ -3,8 +3,16 @@
 
 #include <string>
 #include <sstream>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <sys/time.h>
+
 #include "mbed.h"
 #include "Callback.h"
+
+#include "jerry-core/jerry-port.h"
+
+#include "us_ticker_api.h"
 
 using namespace std;
 
@@ -14,12 +22,25 @@ using namespace std;
 extern RawSerial pc;
 #endif
 
-class Repl {
+class IRepl {
+public:
+    virtual void printJustHappened() = 0;
+};
+
+static IRepl* replInstance = NULL;
+
+class Repl : public IRepl {
 public:
     Repl() {
         pc.printf("\r\nJavaScript REPL running...\r\n> ");
 
+        replInstance = this;
+
         pc.attach(Callback<void()>(this, &Repl::callback));
+    }
+
+    void printJustHappened() {
+        pc.printf("> %s", buffer.str().c_str());
     }
 
 private:
@@ -184,5 +205,32 @@ private:
     // vector<string> history;
     // uint8_t historyCounter;
 };
+
+static bool jerry_port_console_printing = false;
+
+void jerry_port_console (const char *format, /**< format string */
+                         ...) /**< parameters */
+{
+    if (strlen(format) == 1 && format[0] == 0x0a) { // line feed (\n)
+        printf("\r"); // add CR for proper display in serial monitors
+
+        jerry_port_console_printing = false; // not printing anymore...
+    }
+
+    if (!jerry_port_console_printing) {
+        pc.printf("\33[100D\33[2K");
+        jerry_port_console_printing = true;
+    }
+
+    va_list args;
+    va_start(args, format);
+    vfprintf(stdout, format, args);
+    va_end(args);
+
+    if (strlen(format) == 1 && format[0] == 0x0a && replInstance) {
+        replInstance->printJustHappened();
+    }
+} /* jerry_port_console */
+
 
 #endif // _MBED_JS_REPL_
