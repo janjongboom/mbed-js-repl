@@ -8,11 +8,15 @@
 
 using namespace std;
 
+#ifndef JSMBED_USE_RAW_SERIAL
+#error "Macro 'JSMBED_USE_RAW_SERIAL' not defined, required by mbed-js-repl"
+#else
 extern RawSerial pc;
+#endif
 
 class Repl {
 public:
-    Repl() : historyCounter(0) {
+    Repl() {
         pc.printf("\r\nJavaScript REPL running...\r\n> ");
 
         pc.attach(Callback<void()>(this, &Repl::callback));
@@ -27,40 +31,40 @@ private:
             if (inControlChar) {
                 pc.putc(c);
 
-                controlSequence.push_back(c);
+                // controlSequence.push_back(c);
 
                 // if a-zA-Z then it's the last one in the control char...
                 if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
                     inControlChar = false;
 
-                    if (controlSequence.size() == 2 && controlSequence.at(0) == 0x5b && controlSequence.at(1) == 0x41) {
-                        // up
-                        if (historyCounter == 0) continue;
+                    // if (controlSequence.size() == 2 && controlSequence.at(0) == 0x5b && controlSequence.at(1) == 0x41) {
+                    //     // up
+                    //     if (historyCounter == 0) continue;
 
-                        string cmd = history[--historyCounter];
+                    //     string cmd = history[--historyCounter];
 
-                        buffer.str("");
-                        buffer << cmd;
+                    //     buffer.str("");
+                    //     buffer << cmd;
 
-                        pc.printf("\r\n> %s", cmd.c_str());
-                    }
-                    else if (controlSequence.size() == 2 && controlSequence.at(0) == 0x5b && controlSequence.at(1) == 0x42) {
-                        // down
-                        if (historyCounter == history.size() - 1) {
-                            pc.printf("\r\n> ");
-                            buffer.str("");
-                            continue;
-                        }
+                    //     pc.printf("\r\n> %s", cmd.c_str());
+                    // }
+                    // else if (controlSequence.size() == 2 && controlSequence.at(0) == 0x5b && controlSequence.at(1) == 0x42) {
+                    //     // down
+                    //     if (historyCounter == history.size() - 1) {
+                    //         pc.printf("\r\n> ");
+                    //         buffer.str("");
+                    //         continue;
+                    //     }
 
-                        string cmd = history[++historyCounter];
+                    //     string cmd = history[++historyCounter];
 
-                        buffer.str("");
-                        buffer << cmd;
+                    //     buffer.str("");
+                    //     buffer << cmd;
 
-                        pc.printf("\r\n> %s", cmd.c_str());
-                    }
+                    //     pc.printf("\r\n> %s", cmd.c_str());
+                    // }
 
-                    controlSequence.clear();
+                    // controlSequence.clear();
                 }
 
                 continue;
@@ -110,8 +114,8 @@ private:
 
         string codez = buffer.str();
 
-        history.push_back(codez);
-        historyCounter = history.size();
+        // history.push_back(codez);
+        // historyCounter = history.size();
 
         // pc.printf("Executing: ");
         // for (size_t ix = 0; ix < codez.size(); ix++) {
@@ -174,9 +178,9 @@ private:
 
     stringstream buffer;
     bool inControlChar = false;
-    vector<char> controlSequence;
-    vector<string> history;
-    uint8_t historyCounter;
+    // vector<char> controlSequence;
+    // vector<string> history;
+    // uint8_t historyCounter;
 };
 
 #endif // _MBED_JS_REPL_

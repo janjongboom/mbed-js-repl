@@ -1,0 +1,4 @@
+{
+    "name": "mbed-js-repl",
+    "macros": ["JSMBED_USE_RAW_SERIAL"]
+}
