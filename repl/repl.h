@@ -164,9 +164,12 @@ private:
                 jerry_value_t str_value = jerry_value_to_string(returned_value);
 
                 jerry_size_t size = jerry_get_string_size(str_value);
-                jerry_char_t buffer[size];
+                jerry_char_t buffer[size + 1] = { 0 };
 
                 jerry_string_to_char_buffer(str_value, buffer, size);
+
+                // jerry_string_to_char_buffer is not guaranteed to end with \0
+                buffer[size] = '\0';
 
                 // reset terminal position to column 0...
                 pc.printf("\33[2K\r");
