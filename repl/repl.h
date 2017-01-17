@@ -2,7 +2,6 @@
 #define _MBED_JS_REPL_
 
 #include <string>
-#include <sstream>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -22,6 +21,52 @@ using namespace std;
 extern RawSerial pc;
 #endif
 
+class ReplBuffer {
+public:
+    ReplBuffer() {}
+
+    void clear() {
+        buffer.clear();
+        position = 0;
+    }
+
+    void add(string s) {
+        for(string::iterator it = s.begin(); it != s.end(); ++it) {
+            buffer.insert(buffer.begin() + position, *it);
+            position++;
+        }
+    }
+
+    void add(char c) {
+        buffer.insert(buffer.begin() + position, c);
+        position++;
+    }
+
+    vector<char>::iterator begin() {
+        return buffer.begin();
+    }
+
+    vector<char>::iterator end() {
+        return buffer.end();
+    }
+
+    size_t getPosition() {
+        return position;
+    }
+
+    void setPosition(size_t pos) {
+        position = pos;
+    }
+
+    size_t size() {
+        return buffer.size();
+    }
+
+private:
+    vector<char> buffer;
+    size_t position = 0;
+};
+
 class IRepl {
 public:
     virtual void printJustHappened() = 0;
@@ -40,7 +85,8 @@ public:
     }
 
     void printJustHappened() {
-        pc.printf("> %s", buffer.str().c_str());
+        string s(buffer.begin(), buffer.end());
+        pc.printf("> %s", s.c_str());
     }
 
 private:
@@ -69,8 +115,8 @@ private:
                             // reset cursor to 0, do \r, then write the new command...
                             pc.printf("\33[2K\r> %s", history[historyPosition].c_str());
 
-                            buffer.str("");
-                            buffer << history[historyPosition];
+                            buffer.clear();
+                            buffer.add(history[historyPosition]);
                         }
                     }
                     // down
@@ -87,28 +133,28 @@ private:
                             // reset cursor to 0, do \r, then write the new command...
                             pc.printf("\33[2K\r> ");
 
-                            buffer.str("");
+                            buffer.clear();
                         }
                         else {
                             historyPosition++;
                             // reset cursor to 0, do \r, then write the new command...
                             pc.printf("\33[2K\r> %s", history[historyPosition].c_str());
 
-                            buffer.str("");
-                            buffer << history[historyPosition];
+                            buffer.clear();
+                            buffer.add(history[historyPosition]);
                         }
                     }
                     // left
                     else if (controlSequence.size() == 2 && controlSequence.at(0) == 0x5b && controlSequence.at(1) == 0x44) {
-                        stringstream::pos_type curr = buffer.tellp();
+                        size_t curr = buffer.getPosition();
 
                         // at pos0? prevent moving to the left
-                        if (int(curr) == 0) {
+                        if (curr == 0) {
                             pc.printf("\033[u"); // restore current position
                         }
                         // otherwise it's OK, move the cursor back
                         else {
-                            buffer.seekp(curr - 1, ios::beg);
+                            buffer.setPosition(curr - 1);
 
                             pc.putc('\033');
                             for (size_t ix = 0; ix < controlSequence.size(); ix++) {
@@ -118,19 +164,15 @@ private:
                     }
                     // right
                     else if (controlSequence.size() == 2 && controlSequence.at(0) == 0x5b && controlSequence.at(1) == 0x43) {
-                        // tellp gives me the output position
-                        stringstream::pos_type curr = buffer.tellp();
-                        buffer.seekp(0, ios::end);
-                        stringstream::pos_type size = buffer.tellp();
-                        // reset the stream
-                        buffer.seekp(curr, ios::beg);
+                        size_t curr = buffer.getPosition();
+                        size_t size = buffer.size();
 
                         // already at the end?
                         if (curr == size) {
                             pc.printf("\033[u"); // restore current position
                         }
                         else {
-                            buffer.seekp(curr + 1, ios::beg);
+                            buffer.setPosition(curr + 1);
 
                             pc.putc('\033');
                             for (size_t ix = 0; ix < controlSequence.size(); ix++) {
@@ -169,24 +211,22 @@ private:
 
                     break; /* break out of the callback (ignore all other characters) */
                 default:
-                    // tellp gives me the output position
-                    stringstream::pos_type curr_pos = buffer.tellp();
-                    buffer.seekp(0, ios::end);
-                    stringstream::pos_type buffer_size = buffer.tellp();
+                    size_t curr_pos = buffer.getPosition();
+                    size_t buffer_size = buffer.size();
 
                     if (curr_pos == buffer_size) {
-                        buffer << c;
+                        buffer.add(c);
                         pc.putc(c);
                     }
                     else {
                         // super inefficient...
-                        string v = buffer.str();
+                        string v(buffer.begin(), buffer.end());
                         v.insert(curr_pos, 1, c);
 
-                        buffer.str("");
-                        buffer << v;
+                        buffer.clear();
+                        buffer.add(v);
 
-                        buffer.seekp(curr_pos + 1);
+                        buffer.setPosition(curr_pos + 1);
 
                         pc.printf("\r> %s\033[%dG", v.c_str(), int(curr_pos) + 4);
                     }
@@ -196,9 +236,9 @@ private:
     }
 
     void handleBackspace() {
-        stringstream::pos_type curr_pos = buffer.tellp();
+        size_t curr_pos = buffer.getPosition();
 
-        string v = buffer.str();
+        string v(buffer.begin(), buffer.end());
 
         if (v.size() == 0 || curr_pos == 0) return;
 
@@ -206,24 +246,24 @@ private:
 
         v.erase(curr_pos - 1, 1);
 
-        buffer.str("");
-        buffer << v;
+        buffer.clear();
+        buffer.add(v);
 
-        buffer.seekp(curr_pos - 1);
+        buffer.setPosition(curr_pos - 1);
 
         if (endOfLine) {
             pc.printf("\b \b");
         }
         else {
             // carriage return, new text, set cursor, empty until end of line
-            pc.printf("\r\033[K> %s\033[%dG", v.c_str(), int(curr_pos) + 2);
+            pc.printf("\r\033[K> %s\033[%dG", v.c_str(), curr_pos + 2);
         }
     }
 
     void runBuffer() {
-        // pc.printf("Running: %s\r\n", buffer.str().c_str());
+        string rawCode(buffer.begin(), buffer.end());
 
-        string rawCode = buffer.str();
+        // pc.printf("Running: %s\r\n", rawCode.c_str());
 
         history.push_back(rawCode);
         historyPosition = history.size();
@@ -254,25 +294,25 @@ private:
                 jerry_value_t str_value = jerry_value_to_string(returned_value);
 
                 jerry_size_t size = jerry_get_string_size(str_value);
-                jerry_char_t buffer[size + 1] = { 0 };
+                jerry_char_t ret_buffer[size + 1] = { 0 };
 
-                jerry_string_to_char_buffer(str_value, buffer, size);
+                jerry_string_to_char_buffer(str_value, ret_buffer, size);
 
                 // jerry_string_to_char_buffer is not guaranteed to end with \0
-                buffer[size] = '\0';
+                ret_buffer[size] = '\0';
 
                 // reset terminal position to column 0...
                 pc.printf("\33[2K\r");
                 pc.printf("\33[36m"); // color to cyan
 
                 if (jerry_value_is_string(returned_value)) {
-                    pc.printf("\"%s\"", buffer);
+                    pc.printf("\"%s\"", ret_buffer);
                 }
                 else if (jerry_value_is_array(returned_value)) {
-                    pc.printf("[%s]", buffer);
+                    pc.printf("[%s]", ret_buffer);
                 }
                 else {
-                    pc.printf("%s", buffer);
+                    pc.printf("%s", ret_buffer);
                 }
 
                 // pc.printf("\r\n");
@@ -287,12 +327,12 @@ private:
 
         jerry_release_value(parsed_code);
 
-        buffer.str("");
+        buffer.clear();
 
         pc.printf("> ");
     }
 
-    stringstream buffer;
+    ReplBuffer buffer;
     bool inControlChar = false;
     vector<char> controlSequence;
     vector<string> history;
