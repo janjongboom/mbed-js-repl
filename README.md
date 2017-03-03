@@ -7,7 +7,7 @@ JS REPL library for mbed OS 5. For an example program that uses the REPL, see [m
 1. Start a new JavaScript on mbed project:
 
     ```
-    $ git clone git@github.com:armmbed/mbed-js-example my-js-repl
+    $ git clone git@github.com:armmbed/mbed-js-example my-js-repl
     $ cd my-js-repl
     $ npm install
     ```
