@@ -15,7 +15,7 @@ JS REPL library for mbed OS 5. For an example program that uses the REPL, see [m
 2. Add this library to your dependencies:
 
     ```
-    $ npm install mbed-js-repl
+    $ npm install mbed-js-repl --save
     ```
 
 3. Add the following line to your JS app:
