@@ -1,4 +1,4 @@
-#include "jerry-core/jerry-api.h"
+#include "jerryscript-mbed-library-registry/wrap_tools.h"
 #include "jerryscript-mbed-event-loop/EventLoop.h"
 #include "repl/repl-js.h"
 #include "repl/repl.h"

@@ -9,8 +9,6 @@
 #include "mbed.h"
 #include "Callback.h"
 
-#include "jerry-core/jerry-port.h"
-
 #include "us_ticker_api.h"
 
 using namespace std;
