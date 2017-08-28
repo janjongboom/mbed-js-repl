@@ -198,7 +198,8 @@ private:
                     pc.putc('\n');
                     js::EventLoop::getInstance().nativeCallback(Callback<void()>(this, &Repl::runBuffer));
                     break;
-                case 0x7f: /* backspace */
+                case 0x08: /* backspace */
+                case 0x7f: /* also backspace on some terminals */
                     js::EventLoop::getInstance().nativeCallback(Callback<void()>(this, &Repl::handleBackspace));
                     break;
                 case 0x1b: /* control character */
