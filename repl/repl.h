@@ -71,6 +71,7 @@ static IRepl* replInstance = NULL;
 class Repl : public IRepl {
 public:
     Repl() : pc(USBTX, USBRX), historyPosition(0) {
+        pc.baud(MBED_CONF_PLATFORM_STDIO_BAUD_RATE);
         pc.printf("\r\nJavaScript REPL running...\r\n> ");
 
         replInstance = this;
