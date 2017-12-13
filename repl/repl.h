@@ -13,15 +13,11 @@
 
 using namespace std;
 
-#ifndef JSMBED_USE_RAW_SERIAL
-#error "Macro 'JSMBED_USE_RAW_SERIAL' not defined, required by mbed-js-repl"
-#else
-extern RawSerial pc;
-#endif
-
 class ReplBuffer {
 public:
-    ReplBuffer() {}
+    ReplBuffer() {
+        position = 0;
+    }
 
     void clear() {
         buffer.clear();
@@ -62,7 +58,7 @@ public:
 
 private:
     vector<char> buffer;
-    size_t position = 0;
+    size_t position;
 };
 
 class IRepl {
@@ -74,7 +70,7 @@ static IRepl* replInstance = NULL;
 
 class Repl : public IRepl {
 public:
-    Repl() : historyPosition(0) {
+    Repl() : pc(USBTX, USBRX), historyPosition(0) {
         pc.printf("\r\nJavaScript REPL running...\r\n> ");
 
         replInstance = this;
@@ -293,7 +289,8 @@ private:
                 jerry_value_t str_value = jerry_value_to_string(returned_value);
 
                 jerry_size_t size = jerry_get_string_size(str_value);
-                jerry_char_t ret_buffer[size + 1] = { 0 };
+
+                jerry_char_t* ret_buffer = (jerry_char_t*)calloc(size + 1, 1);
 
                 jerry_string_to_char_buffer(str_value, ret_buffer, size);
 
@@ -314,9 +311,12 @@ private:
                     pc.printf("%s", ret_buffer);
                 }
 
+                free(ret_buffer);
+
                 // pc.printf("\r\n");
                 pc.printf("\33[0m"); // color back to normal
                 pc.printf("\r\n");
+
 
                 jerry_release_value(str_value);
             }
@@ -331,6 +331,7 @@ private:
         pc.printf("> ");
     }
 
+    RawSerial pc;
     ReplBuffer buffer;
     bool inControlChar = false;
     vector<char> controlSequence;
@@ -350,7 +351,7 @@ void jerry_port_console (const char *format, /**< format string */
     }
 
     if (!jerry_port_console_printing) {
-        pc.printf("\33[100D\33[2K");
+        printf("\33[100D\33[2K");
         jerry_port_console_printing = true;
     }
 

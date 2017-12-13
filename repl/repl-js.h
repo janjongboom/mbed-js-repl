@@ -3,6 +3,6 @@
 
 #include "jerryscript-mbed-library-registry/wrap_tools.h"
 
-DECLARE_CLASS_CONSTRUCTOR(JSRepl);
+DECLARE_GLOBAL_FUNCTION(repl_start);
 
 #endif // _REPL_JS_H
