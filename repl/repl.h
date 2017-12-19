@@ -4,7 +4,7 @@
 #include <string>
 #include <stdarg.h>
 #include <stdlib.h>
-#include <sys/time.h>
+#include <time.h>
 
 #include "mbed.h"
 #include "Callback.h"
@@ -74,7 +74,7 @@ static IRepl* replInstance = NULL;
 
 class Repl : public IRepl {
 public:
-    Repl() : historyPosition(0) {
+    Repl() : historyPosition(0), inControlChar(false) {
         pc.printf("\r\nJavaScript REPL running...\r\n> ");
 
         replInstance = this;
@@ -332,7 +332,7 @@ private:
     }
 
     ReplBuffer buffer;
-    bool inControlChar = false;
+    bool inControlChar;
     vector<char> controlSequence;
     vector<string> history;
     size_t historyPosition;
