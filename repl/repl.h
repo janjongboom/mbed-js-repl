@@ -8,8 +8,8 @@
 
 #include "mbed.h"
 #include "Callback.h"
-
 #include "us_ticker_api.h"
+#include "jerryscript-mbed-launcher/launcher.h"
 
 using namespace std;
 
@@ -277,18 +277,21 @@ private:
         const jerry_char_t* code = reinterpret_cast<const jerry_char_t*>(rawCode.c_str());
         const size_t length = rawCode.length();
 
-        jerry_value_t parsed_code = jerry_parse(code, length, false);
+        const jerry_char_t* resource_name = reinterpret_cast<const jerry_char_t*>("repl_code");
+
+        jerry_value_t parsed_code = jerry_parse(resource_name, strlen("repl_code"),
+            code, length, JERRY_PARSE_NO_OPTS);
 
         // @todo, how do we get the error message? :-o
 
-        if (jerry_value_has_error_flag(parsed_code)) {
-            LOG_PRINT_ALWAYS("Syntax error while parsing code... (%s)\r\n", rawCode.c_str());
+        if (jerry_value_is_error(parsed_code)) {
+            jsmbed_js_print_unhandled_exception(parsed_code, reinterpret_cast<const jerry_char_t*>(rawCode.c_str()));
         }
         else {
             jerry_value_t returned_value = jerry_run(parsed_code);
 
-            if (jerry_value_has_error_flag(returned_value)) {
-                LOG_PRINT_ALWAYS("Running failed...\r\n");
+            if (jerry_value_is_error(returned_value)) {
+                jsmbed_js_print_unhandled_exception(returned_value, reinterpret_cast<const jerry_char_t*>(rawCode.c_str()));
             }
             else {
                 jerry_value_t str_value = jerry_value_to_string(returned_value);
