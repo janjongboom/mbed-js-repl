@@ -70,13 +70,13 @@ static IRepl* replInstance = NULL;
 
 class Repl : public IRepl {
 public:
-    Repl() : pc(USBTX, USBRX), historyPosition(0) {
+    Repl(EventQueue& ev_queue) : queue(ev_queue), pc(USBTX, USBRX), historyPosition(0) {
         pc.baud(MBED_CONF_PLATFORM_STDIO_BAUD_RATE);
         pc.printf("\r\nJavaScript REPL running...\r\n> ");
 
         replInstance = this;
 
-        pc.attach(Callback<void()>(this, &Repl::callback));
+        pc.attach(Callback<void()>(this, &Repl::callback_irq));
     }
 
     void printJustHappened() {
@@ -85,149 +85,153 @@ public:
     }
 
 private:
-    void callback() {
-        while (pc.readable()) {
-            char c = pc.getc();
+    void rx_callback(char c) {
+        // control characters start with 0x1b and end with a-zA-Z
+        if (inControlChar) {
 
-            // control characters start with 0x1b and end with a-zA-Z
-            if (inControlChar) {
+            controlSequence.push_back(c);
 
-                controlSequence.push_back(c);
+            // if a-zA-Z then it's the last one in the control char...
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+                inControlChar = false;
 
-                // if a-zA-Z then it's the last one in the control char...
-                if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
-                    inControlChar = false;
+                // up
+                if (controlSequence.size() == 2 && controlSequence.at(0) == 0x5b && controlSequence.at(1) == 0x41) {
+                    pc.printf("\033[u"); // restore current position
 
-                    // up
-                    if (controlSequence.size() == 2 && controlSequence.at(0) == 0x5b && controlSequence.at(1) == 0x41) {
-                        pc.printf("\033[u"); // restore current position
-
-                        if (historyPosition == 0) {
-                            // cannot do...
-                        }
-                        else {
-                            historyPosition--;
-                            // reset cursor to 0, do \r, then write the new command...
-                            pc.printf("\33[2K\r> %s", history[historyPosition].c_str());
-
-                            buffer.clear();
-                            buffer.add(history[historyPosition]);
-                        }
-                    }
-                    // down
-                    else if (controlSequence.size() == 2 && controlSequence.at(0) == 0x5b && controlSequence.at(1) == 0x42) {
-                        pc.printf("\033[u"); // restore current position
-
-                        if (historyPosition == history.size()) {
-                            // no-op
-                        }
-                        else if (historyPosition == history.size() - 1) {
-                            historyPosition++;
-
-                            // put empty
-                            // reset cursor to 0, do \r, then write the new command...
-                            pc.printf("\33[2K\r> ");
-
-                            buffer.clear();
-                        }
-                        else {
-                            historyPosition++;
-                            // reset cursor to 0, do \r, then write the new command...
-                            pc.printf("\33[2K\r> %s", history[historyPosition].c_str());
-
-                            buffer.clear();
-                            buffer.add(history[historyPosition]);
-                        }
-                    }
-                    // left
-                    else if (controlSequence.size() == 2 && controlSequence.at(0) == 0x5b && controlSequence.at(1) == 0x44) {
-                        size_t curr = buffer.getPosition();
-
-                        // at pos0? prevent moving to the left
-                        if (curr == 0) {
-                            pc.printf("\033[u"); // restore current position
-                        }
-                        // otherwise it's OK, move the cursor back
-                        else {
-                            buffer.setPosition(curr - 1);
-
-                            pc.putc('\033');
-                            for (size_t ix = 0; ix < controlSequence.size(); ix++) {
-                                pc.putc(controlSequence[ix]);
-                            }
-                        }
-                    }
-                    // right
-                    else if (controlSequence.size() == 2 && controlSequence.at(0) == 0x5b && controlSequence.at(1) == 0x43) {
-                        size_t curr = buffer.getPosition();
-                        size_t size = buffer.size();
-
-                        // already at the end?
-                        if (curr == size) {
-                            pc.printf("\033[u"); // restore current position
-                        }
-                        else {
-                            buffer.setPosition(curr + 1);
-
-                            pc.putc('\033');
-                            for (size_t ix = 0; ix < controlSequence.size(); ix++) {
-                                pc.putc(controlSequence[ix]);
-                            }
-                        }
+                    if (historyPosition == 0) {
+                        // cannot do...
                     }
                     else {
-                        // not up/down? Execute original control sequence
+                        historyPosition--;
+                        // reset cursor to 0, do \r, then write the new command...
+                        pc.printf("\33[2K\r> %s", history[historyPosition].c_str());
+
+                        buffer.clear();
+                        buffer.add(history[historyPosition]);
+                    }
+                }
+                // down
+                else if (controlSequence.size() == 2 && controlSequence.at(0) == 0x5b && controlSequence.at(1) == 0x42) {
+                    pc.printf("\033[u"); // restore current position
+
+                    if (historyPosition == history.size()) {
+                        // no-op
+                    }
+                    else if (historyPosition == history.size() - 1) {
+                        historyPosition++;
+
+                        // put empty
+                        // reset cursor to 0, do \r, then write the new command...
+                        pc.printf("\33[2K\r> ");
+
+                        buffer.clear();
+                    }
+                    else {
+                        historyPosition++;
+                        // reset cursor to 0, do \r, then write the new command...
+                        pc.printf("\33[2K\r> %s", history[historyPosition].c_str());
+
+                        buffer.clear();
+                        buffer.add(history[historyPosition]);
+                    }
+                }
+                // left
+                else if (controlSequence.size() == 2 && controlSequence.at(0) == 0x5b && controlSequence.at(1) == 0x44) {
+                    size_t curr = buffer.getPosition();
+
+                    // at pos0? prevent moving to the left
+                    if (curr == 0) {
+                        pc.printf("\033[u"); // restore current position
+                    }
+                    // otherwise it's OK, move the cursor back
+                    else {
+                        buffer.setPosition(curr - 1);
+
                         pc.putc('\033');
                         for (size_t ix = 0; ix < controlSequence.size(); ix++) {
                             pc.putc(controlSequence[ix]);
                         }
                     }
-
-                    controlSequence.clear();
                 }
+                // right
+                else if (controlSequence.size() == 2 && controlSequence.at(0) == 0x5b && controlSequence.at(1) == 0x43) {
+                    size_t curr = buffer.getPosition();
+                    size_t size = buffer.size();
 
-                continue;
-            }
-
-            switch (c) {
-                case '\r': /* want to run the buffer */
-                    pc.putc(c);
-                    pc.putc('\n');
-                    js::EventLoop::getInstance().nativeCallback(Callback<void()>(this, &Repl::runBuffer));
-                    break;
-                case 0x08: /* backspace */
-                case 0x7f: /* also backspace on some terminals */
-                    js::EventLoop::getInstance().nativeCallback(Callback<void()>(this, &Repl::handleBackspace));
-                    break;
-                case 0x1b: /* control character */
-                    // wait until next a-zA-Z
-                    inControlChar = true;
-
-                    pc.printf("\033[s"); // save current position
-
-                    break; /* break out of the callback (ignore all other characters) */
-                default:
-                    size_t curr_pos = buffer.getPosition();
-                    size_t buffer_size = buffer.size();
-
-                    if (curr_pos == buffer_size) {
-                        buffer.add(c);
-                        pc.putc(c);
+                    // already at the end?
+                    if (curr == size) {
+                        pc.printf("\033[u"); // restore current position
                     }
                     else {
-                        // super inefficient...
-                        string v(buffer.begin(), buffer.end());
-                        v.insert(curr_pos, 1, c);
+                        buffer.setPosition(curr + 1);
 
-                        buffer.clear();
-                        buffer.add(v);
-
-                        buffer.setPosition(curr_pos + 1);
-
-                        pc.printf("\r> %s\033[%dG", v.c_str(), int(curr_pos) + 4);
+                        pc.putc('\033');
+                        for (size_t ix = 0; ix < controlSequence.size(); ix++) {
+                            pc.putc(controlSequence[ix]);
+                        }
                     }
-                    break;
+                }
+                else {
+                    // not up/down? Execute original control sequence
+                    pc.putc('\033');
+                    for (size_t ix = 0; ix < controlSequence.size(); ix++) {
+                        pc.putc(controlSequence[ix]);
+                    }
+                }
+
+                controlSequence.clear();
             }
+
+            return;
+        }
+
+        switch (c) {
+            case '\r': /* want to run the buffer */
+                pc.putc(c);
+                pc.putc('\n');
+                js::EventLoop::getInstance().nativeCallback(Callback<void()>(this, &Repl::runBuffer));
+                break;
+            case 0x08: /* backspace */
+            case 0x7f: /* also backspace on some terminals */
+                js::EventLoop::getInstance().nativeCallback(Callback<void()>(this, &Repl::handleBackspace));
+                break;
+            case 0x1b: /* control character */
+                // wait until next a-zA-Z
+                inControlChar = true;
+
+                pc.printf("\033[s"); // save current position
+
+                break; /* break out of the callback (ignore all other characters) */
+            default:
+                size_t curr_pos = buffer.getPosition();
+                size_t buffer_size = buffer.size();
+
+                if (curr_pos == buffer_size) {
+                    buffer.add(c);
+                    pc.putc(c);
+                }
+                else {
+                    // super inefficient...
+                    string v(buffer.begin(), buffer.end());
+                    v.insert(curr_pos, 1, c);
+
+                    buffer.clear();
+                    buffer.add(v);
+
+                    buffer.setPosition(curr_pos + 1);
+
+                    pc.printf("\r> %s\033[%dG", v.c_str(), int(curr_pos) + 4);
+                }
+                break;
+        }
+    }
+
+    void callback_irq() {
+        while (pc.readable()) {
+            char c = pc.getc();
+
+            queue.call(callback(this, &Repl::rx_callback), c);
         }
     }
 
@@ -332,6 +336,7 @@ private:
         pc.printf("> ");
     }
 
+    EventQueue& queue;
     RawSerial pc;
     ReplBuffer buffer;
     bool inControlChar = false;
